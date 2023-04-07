@@ -14,5 +14,8 @@ Register::register(
     'Weline_CacheManager',
     __DIR__,
     '1.1.0',
-    '<a href="bbs.aiweline.com">缓存管理器</a>'
+    '<a href="bbs.aiweline.com">缓存管理器</a>',
+    [
+        'Weline_Admin'
+    ]
 );

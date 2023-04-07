@@ -9,7 +9,4 @@
 
 return [
     'router'       => 'admin',
-    'dependencies' => [
-        'Weline_Admin'
-    ]
 ];
