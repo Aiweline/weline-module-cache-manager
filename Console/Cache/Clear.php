@@ -44,38 +44,42 @@ class Clear implements \Weline\Framework\Console\CommandInterface
     {
         $is_force = in_array('-f', $args);
         $caches   = $this->scanner->getCaches();
-        foreach ($caches as $form => $cache) {
+        foreach ($caches as $form => $modules_caches) {
             switch ($form) {
-                case 'app_caches':
+                case 'app':
                     $this->printing->note(__('模块缓存清理中...'));
-                    foreach ($cache as $app_cache) {
-                        $this->printing->printing(__($app_cache['class'] . '...'));
-                        /**@var CacheFactory $cacheObjectManager */
-                        $cacheObjectManager = ObjectManager::getInstance($this->reductionFactoryClass($app_cache['class']));
-                        if ($cacheObjectManager instanceof CacheFactoryInterface) {
-                            if ($is_force || !$cacheObjectManager->isKeep()) {
-                                $cacheObjectManager->create()->clear();
+                    foreach ($modules_caches as $module => $module_caches) {
+                        foreach ($module_caches as $app_cache) {
+                            $this->printing->printing(__($app_cache['class'] . '...'));
+                            /**@var CacheFactory $cacheObjectManager */
+                            $cacheObjectManager = ObjectManager::getInstance($this->reductionFactoryClass($app_cache['class']));
+                            if ($cacheObjectManager instanceof CacheFactoryInterface) {
+                                if ($is_force || !$cacheObjectManager->isKeep()) {
+                                    $cacheObjectManager->create()->clear();
+                                }
+                            } else {
+                                /**@var CacheInterface $cacheObjectManager */
+                                $cacheObjectManager->clear();
                             }
-                        } else {
-                            /**@var CacheInterface $cacheObjectManager */
-                            $cacheObjectManager->clear();
                         }
                     }
 
                     break;
-                case 'framework_caches':
+                case 'framework':
                     $this->printing->note(__('框架缓存清理中...'));
-                    foreach ($cache as $framework_cache) {
-                        $this->printing->printing(__($framework_cache['class'] . '...'));
-                        /**@var CacheFactory $cacheObjectManager */
-                        $cacheObjectManager = ObjectManager::getInstance($this->reductionFactoryClass($framework_cache['class']));
-                        if ($cacheObjectManager instanceof CacheFactoryInterface) {
-                            if ($is_force || !$cacheObjectManager->isKeep()) {
-                                $cacheObjectManager->create()->clear();
+                    foreach ($modules_caches as $module => $module_caches) {
+                        foreach ($module_caches as $framework_cache) {
+                            $this->printing->printing(__($framework_cache['class'] . '...'));
+                            /**@var CacheFactory $cacheObjectManager */
+                            $cacheObjectManager = ObjectManager::getInstance($this->reductionFactoryClass($framework_cache['class']));
+                            if ($cacheObjectManager instanceof CacheFactoryInterface) {
+                                if ($is_force || !$cacheObjectManager->isKeep()) {
+                                    $cacheObjectManager->create()->clear();
+                                }
+                            } else {
+                                /**@var CacheInterface $cacheObjectManager */
+                                $cacheObjectManager->clear();
                             }
-                        } else {
-                            /**@var CacheInterface $cacheObjectManager */
-                            $cacheObjectManager->clear();
                         }
                     }
 
@@ -102,7 +106,7 @@ class Clear implements \Weline\Framework\Console\CommandInterface
     public function reductionFactoryClass(string $class): string
     {
         if (!class_exists($class) && str_ends_with($class, 'Factory')) {
-            if (str_ends_with($class, "Factory")) {
+            if (str_ends_with($class, 'Factory')) {
                 $class = rtrim($class, 'Factory');
             }
         }
