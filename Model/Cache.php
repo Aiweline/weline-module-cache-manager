@@ -47,7 +47,8 @@ class Cache extends \Weline\Framework\Database\Model
      */
     public function install(ModelSetup $setup, Context $context): void
     {
-        $setup->dropTable();
+//        $setup->dropTable();
+        if($setup->tableExist()) $setup->query('TRUNCATE TABLE ' . $this->getTable());
         if (!$setup->tableExist()) {
             $setup->getPrinting()->setup('安装数据表...', $setup->getTable());
             $setup->createTable('缓存')
