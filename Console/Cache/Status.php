@@ -41,7 +41,7 @@ class Status implements \Weline\Framework\Console\CommandInterface
     {
         # 操作符
         if (isset($args[1]) && $op = $args[1]) {
-            $caches = array_merge($this->scanner->scanFrameworkCaches(), $this->scanner->scanAppCaches());
+            $caches = $this->scanner->getCaches();
             foreach ($caches as &$cache) {
                 $cache = ObjectManager::getInstance((rtrim($cache['class'], 'Factory') . 'Factory'));
             }
@@ -98,24 +98,29 @@ class Status implements \Weline\Framework\Console\CommandInterface
     public function printAll()
     {
         $this->printing->warning(__('模组缓存'));
-        $caches = $this->scanner->scanAppCaches();
+        $caches = $this->scanner->getCaches();
+        $app_caches = $caches['app']??[];
         /**@var CacheInterface $cache */
-        foreach ($caches as $cache_data) {
-            $cache = ObjectManager::make(rtrim($cache_data['class'], 'Factory') . 'Factory');
-            $this->printing->note(
-                str_pad($cache->getIdentify(), 45) .
-                '=>' . ($cache->getStatus() ? 1 : 0) . '   ' . $cache->tip()
-            );
+        foreach ($app_caches as $modeule => $cache_class_files) {
+            foreach ($cache_class_files as $cache_class_file) {
+                $cache = ObjectManager::make(rtrim($cache_class_file['class'], 'Factory') . 'Factory');
+                $this->printing->note(
+                    str_pad($cache->getIdentify(), 45) .
+                    '=>' . ($cache->getStatus() ? 1 : 0) . '   ' . $cache->tip()
+                );
+            }
         }
         $this->printing->warning(__('框架缓存'));
-        $caches = $this->scanner->scanFrameworkCaches();
+        $caches = $caches['framework']??[];
         /**@var CacheInterface $cache */
-        foreach ($caches as $cache_data) {
-            $cache = ObjectManager::getInstance(rtrim($cache_data['class'], 'Factory') . 'Factory');
-            $this->printing->note(
-                str_pad($cache->getIdentify(), 45) .
-                '=>' . ($cache->getStatus() ? 1 : 0) . '   ' . $cache->tip()
-            );
+        foreach ($caches as $modeule=>$cache_class_files) {
+            foreach ($cache_class_files as $cache_class_file) {
+                $cache = ObjectManager::make(rtrim($cache_class_file['class'], 'Factory') . 'Factory');
+                $this->printing->note(
+                    str_pad($cache->getIdentify(), 45) .
+                    '=>' . ($cache->getStatus() ? 1 : 0) . '   ' . $cache->tip()
+                );
+            }
         }
     }
 
