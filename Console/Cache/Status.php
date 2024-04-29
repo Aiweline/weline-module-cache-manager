@@ -42,8 +42,13 @@ class Status implements \Weline\Framework\Console\CommandInterface
         # 操作符
         if (isset($args[1]) && $op = $args[1]) {
             $caches = $this->scanner->getCaches();
-            foreach ($caches as &$cache) {
-                $cache = ObjectManager::getInstance((rtrim($cache['class'], 'Factory') . 'Factory'));
+            $cachesObjs = [];
+            foreach ($caches as $position=> $position_cache_class_files) {
+                foreach ($position_cache_class_files as $module=> $module_cache_class_files) {
+                    foreach ($module_cache_class_files as $moduleCacheClassFile) {
+                        $cachesObjs[] = ObjectManager::getInstance((rtrim($moduleCacheClassFile['class'], 'Factory') . 'Factory'));
+                    }
+                }
             }
             /**@var CacheInterface $cacheObj */
             switch ($op) {
@@ -57,7 +62,7 @@ class Status implements \Weline\Framework\Console\CommandInterface
                     if ($identify_s) {
                         foreach ($identify_s as $identify) {
                             $no_has = true;
-                            foreach ($caches as $cacheObj) {
+                            foreach ($cachesObjs as $cacheObj) {
                                 if ($identify === $cacheObj->getIdentify()) {
                                     $set_data[$identify] = $status;
                                     $no_has              = false;
