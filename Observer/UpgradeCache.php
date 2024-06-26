@@ -27,9 +27,7 @@ class UpgradeCache implements \Weline\Framework\Event\ObserverInterface
     )
     {
         $this->scanner   = $scanner;
-        $frameworkCaches = $this->scanner->scanFrameworkCaches();
-        $appCaches       = $this->scanner->scanAppCaches();
-        $this->data      = ['framework' => $frameworkCaches, 'app' => $appCaches];
+        $this->data = $this->scanner->getCaches();
     }
 
     /**
@@ -43,15 +41,19 @@ class UpgradeCache implements \Weline\Framework\Event\ObserverInterface
         $modules = Env::getInstance()->getModuleList();
         # 更新系统缓存
         $framework_cache = $this->data['framework'];
-        foreach ($framework_cache as $cache) {
-            $cache['type'] = 0;
-            $this->processCache($model, (array)$cache, $modules, 'Weline_Framework');
+        foreach ($framework_cache as $module=> $caches) {
+            foreach ($caches as $cache) {
+                $cache['type'] = 0;
+                $this->processCache($model, (array)$cache, $modules, $module);
+            }
         }
-        # 更新系统缓存
+        # 更新APP缓存
         $app_cache = $this->data['app'];
-        foreach ($app_cache as $cache) {
-            $cache['type'] = 1;
-            $this->processCache($model, (array)$cache, $modules);
+        foreach ($app_cache as $module=> $caches) {
+            foreach ($caches as $cache) {
+                $cache['type'] = 1;
+                $this->processCache($model, (array)$cache, $modules, $module);
+            }
         }
     }
 
