@@ -2,105 +2,133 @@
 
 declare(strict_types=1);
 
-/*
- * 本文件由 秋枫雁飞 编写，所有解释权归Aiweline所有。
- * 邮箱：aiweline@qq.com
- * 网址：aiweline.com
- * 论坛：https://bbs.aiweline.com
- */
-
 namespace Weline\CacheManager\Observer;
 
-use Weline\Framework\App\Env;
-use Weline\Framework\Cache\CacheFactory;
+use Weline\CacheManager\Model\Cache as CacheRecord;
+use Weline\Framework\Cache\CacheManager;
 use Weline\Framework\Event\Event;
-use Weline\Framework\Cache\Scanner;
 use Weline\Framework\Manager\ObjectManager;
 
 class UpgradeCache implements \Weline\Framework\Event\ObserverInterface
 {
-    private Scanner $scanner;
-    private array $data;
-
     public function __construct(
-        Scanner $scanner
-    )
-    {
-        $this->scanner   = $scanner;
-        $this->data = $this->scanner->getCaches();
+        private readonly CacheManager $cacheManager
+    ) {
     }
 
-    /**
-     * @inheritDoc
-     */
-    public function execute(Event $event)
+    public function execute(Event &$event): void
     {
-        # 更新缓存到数据库
-        $model = $this->getModel();
-        # modules
-        $modules = Env::getInstance()->getModuleList();
-        # 更新系统缓存
-        $framework_cache = $this->data['framework'];
-        foreach ($framework_cache as $module=> $caches) {
-            foreach ($caches as $cache) {
-                $cache['type'] = 0;
-                $this->processCache($model, (array)$cache, $modules, $module);
-            }
+        try {
+            $this->syncPoolsToDatabase();
+        } catch (\Throwable $throwable) {
+            w_log_error('UpgradeCache failed: ' . $throwable->getMessage(), [], 'CacheManager::UpgradeCache');
         }
-        # 更新APP缓存
-        $app_cache = $this->data['app'];
-        foreach ($app_cache as $module=> $caches) {
-            foreach ($caches as $cache) {
-                $cache['type'] = 1;
-                $this->processCache($model, (array)$cache, $modules, $module);
+    }
+
+    private function syncPoolsToDatabase(): void
+    {
+        foreach ($this->cacheManager->getPoolIdentities() as $identity) {
+            try {
+                $pool = $this->cacheManager->pool($identity);
+                $this->savePoolToDatabase($identity, $pool->getStats());
+            } catch (\Throwable $throwable) {
+                w_log_error("Sync pool '{$identity}' failed: " . $throwable->getMessage(), [], 'CacheManager::UpgradeCache');
             }
         }
     }
 
     /**
-     * @DESC          # 处理缓存存储
-     *
-     * @AUTH    秋枫雁飞
-     * @EMAIL aiweline@qq.com
-     * @DateTime: 2022/6/19 23:24
-     * 参数区：
-     *
-     * @param \Weline\CacheManager\Model\Cache $model
-     * @param array                            $cache
-     * @param array                            $modules
-     * @param                                  $default_module_name
-     *
-     * @throws \ReflectionException
-     * @throws \Weline\Framework\App\Exception
+     * @param array<string, mixed> $stats
      */
-    public function processCache(\Weline\CacheManager\Model\Cache $model, array $cache, array $modules, $default_module_name = '')
+    private function savePoolToDatabase(string $identity, array $stats): void
     {
-        /**@var CacheFactory $cache */
-        $cacheObj = ObjectManager::makeWithoutFactory($cache['class']);
-        # 查找是否存在缓存记录
-        $model = $model->clearData()->where($model::fields_IDENTITY, $cacheObj->getIdentity())->find()->fetch();
-        # 查找缓存文件所在module
-        $module_name = $default_module_name;
-        foreach ($modules as $module) {
-            if (str_starts_with($cache['file'], $module['base_path'])) {
-                $module_name = $module['name'];
-                break;
-            }
+        /** @var CacheRecord $cacheModel */
+        $cacheModel = ObjectManager::make(CacheRecord::class);
+        $existing = $cacheModel
+            ->where($cacheModel::schema_fields_IDENTITY, $identity)
+            ->find()
+            ->fetch();
+
+        $adapterClass = (string)($stats['adapter'] ?? '');
+        $description = \trim((string)($stats['tip'] ?? ''));
+        $data = [
+            $cacheModel::schema_fields_NAME => $this->resolveDisplayName($existing, $adapterClass),
+            $cacheModel::schema_fields_IDENTITY => $identity,
+            $cacheModel::schema_fields_Module => $this->resolveStringField(
+                $existing,
+                $cacheModel::schema_fields_Module,
+                'Weline_Framework'
+            ),
+            $cacheModel::schema_fields_FILE => $this->resolveStringField(
+                $existing,
+                $cacheModel::schema_fields_FILE,
+                'CacheManager Pool'
+            ),
+            $cacheModel::schema_fields_TYPE => $this->resolveIntField(
+                $existing,
+                $cacheModel::schema_fields_TYPE,
+                0
+            ),
+            $cacheModel::schema_fields_Status => (int)(($stats['enabled'] ?? true) ? 1 : 0),
+            $cacheModel::schema_fields_Permanently => (int)(($stats['permanent'] ?? false) ? 1 : 0),
+            $cacheModel::schema_fields_DESCRIPTION => $description !== ''
+                ? $description
+                : $this->resolveStringField($existing, $cacheModel::schema_fields_DESCRIPTION, ''),
+        ];
+
+        if ($existing && $existing->getId()) {
+            $existing->setData($data)->save();
+            return;
         }
-        $model
-            ->setData($model::fields_NAME, $cacheObj::class)
-            ->setData($model::fields_IDENTITY, $cacheObj->getIdentity())
-            ->setData($model::fields_Module, $module_name)
-            ->setData($model::fields_FILE, str_replace(BP, '', $cache['file']))
-            ->setData($model::fields_TYPE, $cache['type'])
-            ->setData($model::fields_Status, $cacheObj->getStatus() ? 1 : 0)
-            ->setData($model::fields_Permanently, $cacheObj->isKeep() ? 1 : 0)
-            ->setData($model::fields_DESCRIPTION, $cacheObj->tip())
-            ->save(true);
+
+        /** @var CacheRecord $newCache */
+        $newCache = ObjectManager::make(CacheRecord::class);
+        $newCache->setData($data)->save();
     }
 
-    public function getModel(): \Weline\CacheManager\Model\Cache
+    private function resolveDisplayName(mixed $existing, string $adapterClass): string
     {
-        return ObjectManager::getInstance('Weline\CacheManager\Model\Cache');
+        $existingName = $this->resolveStringField($existing, CacheRecord::schema_fields_NAME, '');
+        $adapterLabel = $this->adapterLabel($adapterClass);
+
+        if ($existingName === '' || $existingName === $adapterClass) {
+            return $adapterLabel;
+        }
+
+        return $existingName;
+    }
+
+    private function resolveStringField(mixed $record, string $field, string $default): string
+    {
+        if ($record && \method_exists($record, 'getData')) {
+            $value = \trim((string)$record->getData($field));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return $default;
+    }
+
+    private function resolveIntField(mixed $record, string $field, int $default): int
+    {
+        if ($record && \method_exists($record, 'getData')) {
+            $value = $record->getData($field);
+            if ($value !== null && $value !== '') {
+                return (int)$value;
+            }
+        }
+
+        return $default;
+    }
+
+    private function adapterLabel(string $adapterClass): string
+    {
+        if ($adapterClass === '') {
+            return 'Unknown';
+        }
+
+        $parts = \explode('\\', $adapterClass);
+        return (string)\end($parts);
     }
 }
