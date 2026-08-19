@@ -99,6 +99,10 @@ $config = [
         'title_force_flush_all' => (string)__('强制清理全部缓存'),
     ],
 ];
+$cachePageConfigJson = \json_encode(
+    $config,
+    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+) ?: '{}';
 ?>
 
 <link rel="stylesheet" href="<?= $this->getStaticUrl('Weline_CacheManager/system/cache-admin.css') ?>">
@@ -110,7 +114,7 @@ $config = [
                 <h4 class="mb-sm-0"><?= __('缓存管理') ?></h4>
                 <div class="page-title-right">
                     <ol class="breadcrumb m-0">
-                        <li class="breadcrumb-item"><a href="javascript:void(0);"><?= __('系统') ?></a></li>
+                        <li class="breadcrumb-item"><span><?= __('系统') ?></span></li>
                         <li class="breadcrumb-item active"><?= __('缓存管理') ?></li>
                     </ol>
                 </div>
@@ -199,7 +203,7 @@ $config = [
                 <div class="weline-cache-summary-line"><lang>当前显示</lang> <strong id="cache-filtered-total"><?= $formatCount($summary['filtered_total'] ?? \count($cacheItems)) ?></strong> / <strong id="cache-total-reference"><?= $formatCount($summary['total'] ?? \count($cacheItems)) ?></strong></div>
             </div>
 
-            <form method="get" action="<?= $this->getBackendUrl('admin/system/cache') ?>" class="weline-cache-filters">
+            <w:form method="get" action="@var($this->getBackendUrl('admin/system/cache'))" class="weline-cache-filters">
                 <div class="weline-cache-field">
                     <label for="cache-search"><lang>搜索</lang></label>
                     <input id="cache-search" class="weline-cache-input" type="text" name="search" value="<?= htmlspecialchars((string)($filterSearch ?? '')) ?>" placeholder="<?= __('例如 identity、适配器、模块、说明') ?>">
@@ -232,7 +236,7 @@ $config = [
                     <button type="submit" class="weline-cache-btn weline-cache-btn--primary"><i class="ri-search-line"></i><lang>应用筛选</lang></button>
                     <a class="weline-cache-btn weline-cache-btn--secondary" href="<?= $this->getBackendUrl('admin/system/cache') ?>"><i class="ri-restart-line"></i><lang>重置</lang></a>
                 </div>
-            </form>
+            </w:form>
         </section>
 
         <section class="weline-cache-panel">
@@ -359,10 +363,10 @@ $config = [
                         <?php foreach ($cronTasks as $index => $task): ?>
                             <tr>
                                 <td><?= (int)$index + 1 ?></td>
-                                <td><code><?= htmlspecialchars((string)($task->getData(\Weline\Cron\Model\CronTask::fields_EXECUTE_NAME) ?? '')) ?></code></td>
-                                <td><?= htmlspecialchars((string)($task->getData(\Weline\Cron\Model\CronTask::fields_NAME) ?? '')) ?></td>
-                                <td><code><?= htmlspecialchars((string)($task->getData(\Weline\Cron\Model\CronTask::fields_CRON_TIME) ?? '')) ?></code></td>
-                                <td class="weline-cache-muted"><?= nl2br(htmlspecialchars((string)($task->getData(\Weline\Cron\Model\CronTask::fields_TIP) ?? ''))) ?></td>
+                                <td><code><?= htmlspecialchars($task->executeName) ?></code></td>
+                                <td><?= htmlspecialchars($task->name) ?></td>
+                                <td><code><?= htmlspecialchars($task->cronTime) ?></code></td>
+                                <td class="weline-cache-muted"><?= nl2br(htmlspecialchars($task->tip)) ?></td>
                             </tr>
                         <?php endforeach; ?>
                         </tbody>
@@ -379,5 +383,5 @@ $config = [
     </div>
 </div>
 
-<script id="weline-cache-page-config" type="application/json"><?= \json_encode($config, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?></script>
+<script id="weline-cache-page-config" type="application/json"><?= $cachePageConfigJson ?></script>
 <script src="<?= $this->getStaticUrl('Weline_CacheManager/system/cache-admin.js') ?>"></script>

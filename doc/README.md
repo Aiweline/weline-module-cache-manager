@@ -4,6 +4,12 @@
 
 Weline CacheManager 是系统的缓存管理模块，提供了统一的缓存管理界面、缓存状态控制、缓存清理等功能。该模块支持多种缓存类型，包括系统缓存和应用缓存，并提供可视化的缓存管理工具。
 
+Cron 是可选集成：安装后缓存面板通过 `Weline\Cron\Api\Task\CronTaskCatalogInterface` 读取不可变 `CronTaskRecord` 投影，未安装或 Provider 不可用时返回空列表且不影响缓存管理。CacheManager 不得直接读取 Cron ORM Model、字段常量或 Query Builder。
+
+跨模块读取运行时 TTL 时使用 `Weline\CacheManager\Api\RuntimeCachePolicy`。该 facade
+只返回限幅后的整数 TTL，并在 CacheManager 内部委托配置默认合并与请求级缓存；调用模块不得
+引用 `CacheManager\Service\RuntimeCachePolicy`。
+
 ## 主要功能
 
 ### 1. 缓存管理界面
@@ -35,6 +41,17 @@ Weline CacheManager 是系统的缓存管理模块，提供了统一的缓存管
 - 缓存状态切换
 - 分页显示
 - 搜索过滤
+
+### 6. 顶部设置面板清理缓存标签 `<w:cache:clear />`
+- 由 `Weline\CacheManager\Taglib\CacheClear` 提供，已挂载到后台顶部「设置」面板（`Weline_Admin::common/right-sidebar.phtml`）。
+- 编译期只输出运行时调用 `CacheClear::render()`，可见性在每次渲染时按当前用户 ACL 判定，不会被烘焙进模板缓存。
+- ACL 管控：
+  - 入口按钮与弹窗：需要清理缓存控制器 ACL `Weline_CacheManager::system_cache_clear`（无权限时整个入口不渲染，且使用 `Acl::hasPermissionQuiet()` 静默检查，不产生「无权限」警告消息）；
+  - 弹窗内「全部清理（非持久）」按钮：额外需要 `Weline_CacheManager::system_cache_clear_all`。
+- 弹窗能力：搜索过滤缓存池（identity / 名称 / 模块）、全选当前结果、多选清理（持久池自动带 `force=1`）、一键全部清理非持久缓存。
+- 请求走 bin-query：`cache_manager.clearPool` / `cache_manager.clearAll`（禁止浏览器直连控制器 URL / `fetch`）。缓存管理整页仍可通过 `cache_manager.adminRequest` 桥接旧控制器动作。
+- 缓存池列表来自 `CacheAdminService::listPoolOptions()`（轻量列表，不做逐池统计）。
+- 新模块新增标签后需执行 `php bin/w taglib:collect` 重新生成 `generated/taglibs.php`。
 
 ## 使用方法
 
@@ -97,11 +114,11 @@ $cache->setName('自定义缓存')
 ```php
 namespace Your\Module\Controller\System;
 
-use Weline\Admin\Controller\BaseController;
+use Weline\Framework\App\Controller\BackendPageController;
 use Weline\Framework\Manager\ObjectManager;
 use Weline\CacheManager\Model\Cache;
 
-class CacheController extends BaseController
+class CacheController extends BackendPageController
 {
     public function index()
     {
@@ -424,4 +441,4 @@ A: 在缓存管理界面点击"清理"按钮，或通过代码调用 `clearCache
 A: 检查环境配置是否正确更新，重启应用或清理配置缓存。
 
 ### Q: 如何添加新的缓存类型？
-A: 在数据库中添加新的缓存记录，设置正确的 identity 和 type 值。 
+A: 在数据库中添加新的缓存记录，设置正确的 identity 和 type 值。
